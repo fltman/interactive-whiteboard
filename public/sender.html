@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Skicka till Whiteboard</title>
+  <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 400px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+
+    h1 {
+      font-size: 24px;
+      margin-bottom: 8px;
+      color: #333;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 24px;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .status.connecting {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .status.connected {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .status.error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .status.connecting .status-dot {
+      background: #f59e0b;
+      animation: pulse 1s infinite;
+    }
+
+    .status.connected .status-dot {
+      background: #10b981;
+    }
+
+    .status.error .status-dot {
+      background: #ef4444;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 16px;
+      background: #f3f4f6;
+      padding: 4px;
+      border-radius: 8px;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab.active {
+      background: white;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    textarea, input[type="text"], input[type="url"] {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 16px;
+      margin-bottom: 12px;
+      transition: border-color 0.2s;
+    }
+
+    textarea:focus, input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    .file-input-wrapper {
+      position: relative;
+      margin-bottom: 12px;
+    }
+
+    .file-input-wrapper input[type="file"] {
+      position: absolute;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+
+    .file-input-label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+      border: 2px dashed #d1d5db;
+      border-radius: 8px;
+      background: #f9fafb;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .file-input-label:hover {
+      border-color: #667eea;
+      background: #f0f0ff;
+    }
+
+    .file-input-label .icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+
+    .preview {
+      margin-bottom: 12px;
+    }
+
+    .preview img {
+      max-width: 100%;
+      border-radius: 8px;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .success-message {
+      display: none;
+      text-align: center;
+      padding: 16px;
+      background: #d1fae5;
+      border-radius: 8px;
+      color: #065f46;
+      margin-top: 12px;
+    }
+
+    .success-message.show {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .history {
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .history h3 {
+      font-size: 14px;
+      color: #6b7280;
+      margin-bottom: 12px;
+    }
+
+    .history-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      background: #f9fafb;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .history-item .icon {
+      font-size: 16px;
+    }
+
+    .history-item .text {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .history-item .time {
+      color: #9ca3af;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>📤 Skicka till Whiteboard</h1>
+
+      <div id="status" class="status connecting">
+        <div class="status-dot"></div>
+        <span>Ansluter...</span>
+      </div>
+
+      <div class="tabs" style="flex-wrap: wrap;">
+        <button class="tab active" data-tab="text">Text</button>
+        <button class="tab" data-tab="link">Länk</button>
+        <button class="tab" data-tab="image">Bild</button>
+        <button class="tab" data-tab="doc">Dokument</button>
+        <button class="tab" data-tab="youtube">YouTube</button>
+      </div>
+
+      <!-- Text Tab -->
+      <div id="tab-text" class="tab-content active">
+        <textarea id="text-input" placeholder="Skriv din text här..."></textarea>
+        <button class="btn btn-primary" id="send-text" disabled>Skicka text</button>
+      </div>
+
+      <!-- Link Tab -->
+      <div id="tab-link" class="tab-content">
+        <input type="url" id="link-input" placeholder="https://example.com">
+        <input type="text" id="link-title" placeholder="Titel (valfritt)">
+        <button class="btn btn-primary" id="send-link" disabled>Skicka länk</button>
+      </div>
+
+      <!-- Image Tab -->
+      <div id="tab-image" class="tab-content">
+        <div class="file-input-wrapper">
+          <input type="file" id="image-input" accept="image/*">
+          <div class="file-input-label">
+            <span class="icon">📷</span>
+            <span>Tryck för att välja bild</span>
+          </div>
+        </div>
+        <div id="image-preview" class="preview"></div>
+        <button class="btn btn-primary" id="send-image" disabled>Skicka bild</button>
+      </div>
+
+      <!-- Document Tab -->
+      <div id="tab-doc" class="tab-content">
+        <div class="file-input-wrapper">
+          <input type="file" id="doc-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation">
+          <div class="file-input-label">
+            <span class="icon">📄</span>
+            <span>PDF, Word, Excel, PowerPoint</span>
+            <span style="font-size: 12px; color: #888; margin-top: 4px;">Max 50 MB</span>
+          </div>
+        </div>
+        <div id="doc-preview" class="preview"></div>
+        <div id="doc-info" style="margin-bottom: 12px; font-size: 14px; color: #666;"></div>
+        <button class="btn btn-primary" id="send-doc" disabled>Skicka dokument</button>
+      </div>
+
+      <!-- YouTube Tab -->
+      <div id="tab-youtube" class="tab-content">
+        <input type="url" id="youtube-input" placeholder="https://youtube.com/watch?v=...">
+        <div id="youtube-preview" class="preview"></div>
+        <button class="btn btn-primary" id="send-youtube" disabled>Skicka video</button>
+      </div>
+
+      <div id="success-message" class="success-message">
+        ✓ Skickat till whiteboard!
+      </div>
+
+      <div class="history" id="history" style="display: none;">
+        <h3>Senast skickat</h3>
+        <div id="history-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetPeerId = urlParams.get('peer');
+
+    let peer = null;
+    let connection = null;
+    let isConnected = false;
+    let selectedImage = null;
+
+    // File server URL - use relative path so it works via Vite proxy
+    const FILE_SERVER = '';
+
+    // Upload file to server and get URL
+    async function uploadFile(file) {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const response = await fetch(`${FILE_SERVER}/api/upload`, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          throw new Error('Upload failed');
+        }
+
+        const data = await response.json();
+        return data.url;
+      } catch (error) {
+        console.error('Upload error:', error);
+        throw error;
+      }
+    }
+
+    const statusEl = document.getElementById('status');
+    const successMessage = document.getElementById('success-message');
+    const historyEl = document.getElementById('history');
+    const historyList = document.getElementById('history-list');
+
+    // Initialize peer connection
+    function initPeer() {
+      if (!targetPeerId) {
+        showStatus('error', 'Ingen whiteboard-ID angiven');
+        return;
+      }
+
+      peer = new Peer();
+
+      peer.on('open', () => {
+        console.log('Peer opened, connecting to:', targetPeerId);
+        connectToWhiteboard();
+      });
+
+      peer.on('error', (err) => {
+        console.error('Peer error:', err);
+        showStatus('error', 'Anslutningsfel: ' + err.type);
+      });
+    }
+
+    function connectToWhiteboard() {
+      connection = peer.connect(targetPeerId, { reliable: true });
+
+      connection.on('open', () => {
+        console.log('Connected to whiteboard');
+        isConnected = true;
+        showStatus('connected', 'Ansluten till whiteboard');
+        enableButtons();
+      });
+
+      connection.on('close', () => {
+        isConnected = false;
+        showStatus('error', 'Anslutningen avbröts');
+        disableButtons();
+      });
+
+      connection.on('error', (err) => {
+        console.error('Connection error:', err);
+        showStatus('error', 'Kunde inte ansluta');
+      });
+    }
+
+    function showStatus(type, message) {
+      statusEl.className = 'status ' + type;
+      statusEl.innerHTML = `<div class="status-dot"></div><span>${message}</span>`;
+    }
+
+    function enableButtons() {
+      document.querySelectorAll('.btn-primary').forEach(btn => btn.disabled = false);
+    }
+
+    function disableButtons() {
+      document.querySelectorAll('.btn-primary').forEach(btn => btn.disabled = true);
+    }
+
+    function sendContent(type, content, extra = {}) {
+      if (!isConnected) return;
+
+      const message = {
+        type: 'content',
+        item: {
+          type,
+          content,
+          ...extra
+        }
+      };
+
+      connection.send(message);
+      showSuccess();
+      addToHistory(type, content);
+    }
+
+    function showSuccess() {
+      successMessage.classList.add('show');
+      setTimeout(() => successMessage.classList.remove('show'), 2000);
+    }
+
+    function addToHistory(type, content) {
+      const icons = { text: '📝', link: '🔗', image: '🖼️', youtube: '▶️', document: '📄', pdf: '📕' };
+      const preview = content.length > 30 ? content.substring(0, 30) + '...' : content;
+      const time = new Date().toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+
+      const item = document.createElement('div');
+      item.className = 'history-item';
+      item.innerHTML = `
+        <span class="icon">${icons[type]}</span>
+        <span class="text">${type === 'image' ? 'Bild' : preview}</span>
+        <span class="time">${time}</span>
+      `;
+
+      historyList.insertBefore(item, historyList.firstChild);
+      historyEl.style.display = 'block';
+
+      // Keep only last 5 items
+      while (historyList.children.length > 5) {
+        historyList.removeChild(historyList.lastChild);
+      }
+    }
+
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+      });
+    });
+
+    // Text sending
+    document.getElementById('send-text').addEventListener('click', () => {
+      const text = document.getElementById('text-input').value.trim();
+      if (text) {
+        sendContent('text', text);
+        document.getElementById('text-input').value = '';
+      }
+    });
+
+    // Document URL detection
+    function isDocumentUrl(url) {
+      const lowerUrl = url.toLowerCase();
+      return (
+        lowerUrl.includes('docs.google.com') ||
+        lowerUrl.includes('sheets.google.com') ||
+        lowerUrl.includes('slides.google.com') ||
+        lowerUrl.match(/\.(docx?|xlsx?|pptx?|pdf|rtf|csv|pps)(\?|$)/i) !== null ||
+        lowerUrl.includes('onedrive.live.com') ||
+        lowerUrl.includes('sharepoint.com')
+      );
+    }
+
+    function getDocumentTitle(url) {
+      const lowerUrl = url.toLowerCase();
+      if (lowerUrl.includes('docs.google.com/document')) return 'Google Dokument';
+      if (lowerUrl.includes('docs.google.com/spreadsheets') || lowerUrl.includes('sheets.google.com')) return 'Google Kalkylark';
+      if (lowerUrl.includes('docs.google.com/presentation') || lowerUrl.includes('slides.google.com')) return 'Google Presentationer';
+      if (lowerUrl.match(/\.docx?(\?|$)/i)) return 'Word-dokument';
+      if (lowerUrl.match(/\.xlsx?(\?|$)/i)) return 'Excel-kalkylark';
+      if (lowerUrl.match(/\.pptx?(\?|$)/i)) return 'PowerPoint';
+      if (lowerUrl.match(/\.pdf(\?|$)/i)) return 'PDF-dokument';
+      if (lowerUrl.includes('onedrive') || lowerUrl.includes('sharepoint')) return 'Office-dokument';
+      return 'Dokument';
+    }
+
+    // Link sending - auto-detect document URLs
+    document.getElementById('send-link').addEventListener('click', () => {
+      const url = document.getElementById('link-input').value.trim();
+      const title = document.getElementById('link-title').value.trim();
+      if (url) {
+        if (isDocumentUrl(url)) {
+          sendContent('document', url, { title: title || getDocumentTitle(url) });
+        } else {
+          sendContent('link', url, { title });
+        }
+        document.getElementById('link-input').value = '';
+        document.getElementById('link-title').value = '';
+      }
+    });
+
+    // Image handling
+    let selectedImageFile = null;
+
+    document.getElementById('image-input').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      selectedImageFile = file;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        selectedImage = event.target.result;
+        document.getElementById('image-preview').innerHTML =
+          `<img src="${selectedImage}" alt="Preview">`;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    document.getElementById('send-image').addEventListener('click', async () => {
+      if (selectedImageFile) {
+        const btn = document.getElementById('send-image');
+        btn.textContent = 'Laddar upp...';
+        btn.disabled = true;
+
+        try {
+          const url = await uploadFile(selectedImageFile);
+          sendContent('image', url);
+        } catch (error) {
+          // Fallback to base64 if server is not available
+          if (selectedImage) {
+            sendContent('image', selectedImage);
+          }
+        }
+
+        btn.textContent = 'Skicka bild';
+        btn.disabled = false;
+        selectedImage = null;
+        selectedImageFile = null;
+        document.getElementById('image-preview').innerHTML = '';
+        document.getElementById('image-input').value = '';
+      }
+    });
+
+    // Document handling (PDF, Word, Excel, PowerPoint)
+    let selectedDocFile = null;
+    let selectedDocName = '';
+
+    const docIcons = {
+      'pdf': '📕',
+      'doc': '📝', 'docx': '📝',
+      'xls': '📊', 'xlsx': '📊',
+      'ppt': '📽️', 'pptx': '📽️'
+    };
+
+    function getDocIcon(filename) {
+      const ext = filename.split('.').pop().toLowerCase();
+      return docIcons[ext] || '📄';
+    }
+
+    document.getElementById('doc-input').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      // Check file size (limit to 50MB with server upload)
+      const maxSize = 50 * 1024 * 1024;
+      if (file.size > maxSize) {
+        document.getElementById('doc-info').innerHTML =
+          '<span style="color: #ef4444;">⚠️ Filen är för stor (max 50 MB)</span>';
+        return;
+      }
+
+      selectedDocFile = file;
+      selectedDocName = file.name;
+      const icon = getDocIcon(file.name);
+      document.getElementById('doc-info').innerHTML =
+        `${icon} ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+      document.getElementById('doc-preview').innerHTML =
+        '<div style="padding: 16px; background: #f3f4f6; border-radius: 8px; text-align: center;">✓ Redo att skickas</div>';
+    });
+
+    document.getElementById('send-doc').addEventListener('click', async () => {
+      if (selectedDocFile) {
+        const btn = document.getElementById('send-doc');
+        btn.textContent = 'Laddar upp...';
+        btn.disabled = true;
+
+        try {
+          const url = await uploadFile(selectedDocFile);
+          sendContent('document', url, { title: selectedDocName });
+        } catch (error) {
+          document.getElementById('doc-info').innerHTML =
+            '<span style="color: #ef4444;">⚠️ Kunde inte ladda upp filen. Är servern igång? (npm run server)</span>';
+          btn.textContent = 'Skicka dokument';
+          btn.disabled = false;
+          return;
+        }
+
+        btn.textContent = 'Skicka dokument';
+        btn.disabled = false;
+        selectedDocFile = null;
+        selectedDocName = '';
+        document.getElementById('doc-preview').innerHTML = '';
+        document.getElementById('doc-info').innerHTML = '';
+        document.getElementById('doc-input').value = '';
+      }
+    });
+
+    // YouTube handling
+    function extractYouTubeId(url) {
+      const patterns = [
+        /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+        /youtube\.com\/shorts\/([^&\n?#]+)/
+      ];
+      for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match) return match[1];
+      }
+      return null;
+    }
+
+    document.getElementById('youtube-input').addEventListener('input', (e) => {
+      const url = e.target.value.trim();
+      const videoId = extractYouTubeId(url);
+      const preview = document.getElementById('youtube-preview');
+
+      if (videoId) {
+        preview.innerHTML = `<img src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg" alt="YouTube thumbnail">`;
+      } else {
+        preview.innerHTML = '';
+      }
+    });
+
+    document.getElementById('send-youtube').addEventListener('click', () => {
+      const url = document.getElementById('youtube-input').value.trim();
+      const videoId = extractYouTubeId(url);
+      if (videoId) {
+        sendContent('youtube', url, {
+          thumbnail: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
+        });
+        document.getElementById('youtube-input').value = '';
+        document.getElementById('youtube-preview').innerHTML = '';
+      }
+    });
+
+    // Initialize
+    initPeer();
+  </script>
+</body>
+</html>

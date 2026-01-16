@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm install:*)",
+      "Bash(brew install:*)",
+      "Bash(ngrok config add-authtoken:*)",
+      "Bash(ngrok http:*)",
+      "Bash(curl:*)",
+      "Bash(xxd:*)",
+      "Bash(lsof:*)",
+      "Bash(pkill:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
